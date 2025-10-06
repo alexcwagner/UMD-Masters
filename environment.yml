@@ -1,0 +1,39 @@
+name: tuyok
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # --- Core language ---
+  - python=3.10
+
+  # --- GUI / Qt ---
+  - pyqt=5
+  - qt-main
+  - qtconsole
+  - qtpy
+
+  # --- OpenGL stack ---
+  - pyopengl
+  - pip
+  - pip:
+      - PyOpenGL_accelerate
+
+  # --- Numerical / scientific ---
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas
+  - numba
+
+  # --- Development utilities ---
+  - spyder=5
+  - pytest
+  - git
+  - setuptools
+  - wheel
+
+  # --- Optional visualization support ---
+  - pillow
+  - imageio
+  - tqdm
