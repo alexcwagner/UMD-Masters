@@ -1,8 +1,11 @@
 
 import sys
-import struct
+#import struct
 import numpy as np
-import Mesh
+
+from Shaders import Shader
+from Mesh import Mesh
+from Vao import Vao
 
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtCore import QTimer, Qt
@@ -10,12 +13,11 @@ from PyQt5.QtGui import QSurfaceFormat, QPainter, QColor, QFont
 from PyQt5.QtWidgets import QOpenGLWidget
 
 from OpenGL import GL
-from OpenGL.GL import shaders as gl_shaders
+#import OpenGL.GL.shaders
+from OpenGL.GL import shaders
 
-from Shaders import VERTEX_SHADER_SRC, FRAGMENT_SHADER_SRC
 
-
-class STLViewer(QOpenGLWidget):
+class SceneView(QOpenGLWidget):
     def __init__(self, scene=None, parent=None):
         super().__init__(parent)
         
@@ -41,45 +43,10 @@ class STLViewer(QOpenGLWidget):
     def initializeGL(self):
         GL.glClearDepth(1.0)
 
-        self.shader = gl_shaders.compileProgram(
-            gl_shaders.compileShader(VERTEX_SHADER_SRC, GL.GL_VERTEX_SHADER),
-            gl_shaders.compileShader(FRAGMENT_SHADER_SRC, GL.GL_FRAGMENT_SHADER),
-        )
+        self.shader = Shader()
+        self.mesh = Mesh.test_cube(flat=True)      
+        self.vao = Vao(self.shader, self.mesh)
 
-        #self.vertices, self.normals, self.indices, self.colors = load_stl_with_colors(self.stl_path)
-        #self.vertices, self.normals, self.indices, self.colors = get_ellipsoid(2, 1.5, 1)
-
-        mesh = Mesh.Mesh.test_cube()
-        #mesh = Mesh.from_STL('../resources/72-gon.stl')
-        
-        self.vertices, self.normals, self.indices, self.colors = mesh.get_buffer_data()
-
-        self.vao = GL.glGenVertexArrays(1)
-        GL.glBindVertexArray(self.vao)
-
-        self.vbo_vertices = GL.glGenBuffers(1)
-        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.vbo_vertices)
-        GL.glBufferData(GL.GL_ARRAY_BUFFER, self.vertices.nbytes, self.vertices, GL.GL_STATIC_DRAW)
-        GL.glEnableVertexAttribArray(0)
-        GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, False, 0, None)
-
-        self.vbo_normals = GL.glGenBuffers(1)
-        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.vbo_normals)
-        GL.glBufferData(GL.GL_ARRAY_BUFFER, self.normals.nbytes, self.normals, GL.GL_STATIC_DRAW)
-        GL.glEnableVertexAttribArray(1)
-        GL.glVertexAttribPointer(1, 3, GL.GL_FLOAT, False, 0, None)
-
-        self.vbo_colors = GL.glGenBuffers(1)
-        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.vbo_colors)
-        GL.glBufferData(GL.GL_ARRAY_BUFFER, self.colors.nbytes, self.colors, GL.GL_STATIC_DRAW)
-        GL.glEnableVertexAttribArray(2)
-        GL.glVertexAttribPointer(2, 3, GL.GL_FLOAT, False, 0, None)
-
-        self.ebo = GL.glGenBuffers(1)
-        GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo)
-        GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, self.indices.nbytes, self.indices, GL.GL_STATIC_DRAW)
-
-        GL.glBindVertexArray(0)
 
     def resizeGL(self, w, h):
         GL.glViewport(0, 0, w, h)
@@ -96,13 +63,12 @@ class STLViewer(QOpenGLWidget):
                 GL.glCullFace(GL.GL_BACK)
             else:
                 GL.glDisable(GL.GL_CULL_FACE)
-            GL.glFrontFace(GL.GL_CW if self.front_cw else GL.GL_CCW)
-    
+            GL.glFrontFace(GL.GL_CW if self.front_cw else GL.GL_CCW)    
             GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
     
             # --- 3D draw ---
-            GL.glUseProgram(self.shader)
-            GL.glBindVertexArray(self.vao)
+            #GL.glUseProgram(self.shader.program)
+            #GL.glBindVertexArray(self.vao._vao)
     
             aspect = self.width() / max(1, self.height())
             proj = self.perspective(45, aspect, 0.1, 100.0)
@@ -111,20 +77,17 @@ class STLViewer(QOpenGLWidget):
                                               np.radians(self.angle_x),
                                               np.radians(self.angle_y))
             view = self.lookAt(eye, np.array([0, 0, 0], dtype=np.float32), np.array([0, 0, 1], dtype=np.float32))
-            model = np.identity(4, dtype=np.float32)
-            mvp = proj @ view @ model
+            
+            model = np.diag([0.5, 0.5, 0.5, 1.0]).astype(np.float32)
+            
+            self.shader.model = model
+            self.shader.view = view
+            self.shader.projection = proj
     
-            loc_mvp = GL.glGetUniformLocation(self.shader, "mvp")
-            GL.glUniformMatrix4fv(loc_mvp, 1, GL.GL_TRUE, mvp.astype(np.float32))
-    
-            loc_model = GL.glGetUniformLocation(self.shader, "model")
-            GL.glUniformMatrix4fv(loc_model, 1, GL.GL_TRUE, model.astype(np.float32))
-    
-            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if self.wireframe else GL.GL_FILL)
-            GL.glDrawElements(GL.GL_TRIANGLES, len(self.indices), GL.GL_UNSIGNED_INT, None)
-    
-            GL.glBindVertexArray(0)
-            GL.glUseProgram(0)
+            #GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if self.wireframe else GL.GL_FILL)
+            #GL.glDrawElements(GL.GL_TRIANGLES, len(self.vao.indices), GL.GL_UNSIGNED_INT, None)
+            self.vao.draw()
+
     
             # --- 2D overlay ---
             self.draw_axis_overlay()
@@ -242,13 +205,13 @@ if __name__ == "__main__":
             super().__init__()
             self.setWindowTitle("STL Viewer")
             self.resize(800, 600)
-            self.viewer = STLViewer()
+            self.viewer = SceneView()
             self.setupUI()
         
         def setupUI(self):
             self.setCentralWidget(self.viewer)
             
-        
+
     app = QApplication(sys.argv)
     fmt = QSurfaceFormat()
     fmt.setVersion(4, 6)
