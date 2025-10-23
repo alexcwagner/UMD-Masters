@@ -2,6 +2,12 @@ import struct
 import numpy as np
 import sys
 
+VERT_DTYPE = np.dtype([
+    ("pos", np.float32, 3),
+    ("nrm", np.float32, 3),
+    ("col", np.float32, 3),
+])
+
 class Scene:
     def __init__(self):
         self.meshes = []
@@ -97,7 +103,7 @@ class Mesh:
     
         colors = None
         
-        vertices = np.array([v.coord for v in self.vertex_list], dtype=np.float32)
+        positions = np.array([v.coord for v in self.vertex_list], dtype=np.float32)
         
         colors = np.array([v.color or (0.8, 0.8, 0.8) for v in self.vertex_list],
                           dtype=np.float32)
@@ -124,7 +130,18 @@ class Mesh:
             for idx in range(1, len(face)-1):
                 indices.extend( [face[0], face[idx], face[idx+1] ] )
         indices = np.array(indices, dtype=np.uint32)
-        return vertices, normals, indices, colors
+        
+        
+        # Interleave the data
+        
+        data = np.empty(len(positions), dtype=VERT_DTYPE)
+        data['pos'] = np.asarray(positions, dtype=np.float32)
+        data['nrm'] = np.asarray(normals, dtype=np.float32)
+        data['col'] = np.asarray(colors, dtype=np.float32)
+        
+        
+        #return positions, normals, indices, colors
+        return data, indices
 
 
     @classmethod
@@ -188,17 +205,3 @@ if __name__ == '__main__':
     mesh = Mesh.from_STL('../resources/72-gon.stl', flat=False)
     print(mesh.get_buffer_data())
     
-    """
-    print("loading object")
-    #mesh = Mesh.from_STL('../resources/72-gon.stl')
-    mesh = Mesh.test_cube()
-
-    print(f"vertices: {mesh.vertex_container.vertex_list}\n")
-    print(f"faces: {mesh.faces.faces}\n")
-    print()
-    buffer_data = mesh.get_buffer_data()
-    for i, buffer in enumerate(buffer_data):
-        print(f"{i}: {buffer}\n")
-    print("done.")
-    """
-
